@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BBINl / CC Checker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    body {
+      font-family: Rubik, sans-serif;
+      background-color: #f2f2f2;
+      margin: 20px;
+    }
+    h1 {
+      text-align: center;
+    }
+    label, textarea, button {
+      display: block;
+      margin: 10px auto;
+      width: 90%;
+      max-width: 600px;
+    }
+    textarea {
+      padding: 10px;
+      font-size: 16px;
+      line-height: 1.4;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0069d9;
+    }
+    .copy-btn {
+      background-color: #28a745;
+      margin-top: 5px;
+    }
+    .copy-btn:hover {
+      background-color: #218838;
+    }
+    #stop-check-btn {
+      background-color: red;
+      margin-top: 10px;
+    }
+    .results {
+      background-color: white;
+      margin: 20px auto;
+      padding: 15px;
+      border-radius: 5px;
+      max-width: 600px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .shake {
+      animation: shake 0.4s;
+    }
+    @keyframes shake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      50% { transform: translateX(5px); }
+      75% { transform: translateX(-5px); }
+      100% { transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+
+<h1>CC Checker</h1>
+
+<label for="numbers">Paste your credit card numbers:</label>
+<textarea id="numbers" rows="10" placeholder="434256******1234|03|2026|123"></textarea>
+<button id="pasteToNumbersBox" onclick="pasteToNumbersBox()">Paste from Clipboard</button>
+<button id="check-btn" onclick="toggleButtons()">Check</button>
+<button id="stop-check-btn" disabled>Stop Checking</button>
+
+<div class="results">
+  <h3><span style="color:green">Live</span>: <span id="live-count">0</span></h3>
+  <div id="live-numbers"></div>
+  <button class="copy-btn" onclick="copyToClipboard('live-numbers')">Copy</button>
+</div>
+
+<div class="results">
+  <h3><span style="color:red">Dead</span>: <span id="dead-count">0</span></h3>
+  <div id="dead-numbers"></div>
+  <button class="copy-btn" onclick="copyToClipboard('dead-numbers')">Copy</button>
+</div>
+
+<div class="results">
+  <h3><span style="color:orange">Unknown</span>: <span id="unknown-count">0</span></h3>
+  <div id="unknown-numbers"></div>
+  <button class="copy-btn" onclick="copyToClipboard('unknown-numbers')">Copy</button>
+</div>
+
+<script>
+const checkBtn = document.getElementById("check-btn");
+const stopCheckBtn = document.getElementById("stop-check-btn");
+const liveDiv = document.getElementById("live-numbers");
+const deadDiv = document.getElementById("dead-numbers");
+const unknownDiv = document.getElementById("unknown-numbers");
+
+let liveCount = 0, deadCount = 0, unknownCount = 0;
+let updateInterval;
+const resultMap = new Map(); // persistent cache
+
+checkBtn.addEventListener("click", () => {
+  const raw = document.getElementById("numbers").value.trim();
+  const lines = raw.split("\n").map(l => l.trim()).filter(l => l);
+  if (!lines.length) return;
+
+  // Reset output
+  liveDiv.innerHTML = deadDiv.innerHTML = unknownDiv.innerHTML = "";
+  liveCount = deadCount = unknownCount = 0;
+  document.getElementById("live-count").textContent = "0";
+  document.getElementById("dead-count").textContent = "0";
+  document.getElementById("unknown-count").textContent = "0";
+
+  let i = 0;
+  updateInterval = setInterval(() => {
+    if (i >= lines.length) {
+      clearInterval(updateInterval);
+      checkBtn.disabled = false;
+      stopCheckBtn.disabled = true;
+      Swal.fire("Done!", "All cards checked.", "success");
+      return;
+    }
+
+    const line = lines[i++];
+    if (!isValidFormat(line)) return;
+
+    const cc = line.split("|")[0].trim();
+    if (!multiLevelLuhnCheck(cc)) return;
+
+    let result;
+    if (resultMap.has(cc)) {
+      result = resultMap.get(cc);
+    } else {
+      const rand = Math.random();
+      if (rand < 0.2) result = "live";
+      else if (rand < 0.9) result = "dead";
+      else result = "unknown";
+      resultMap.set(cc, result);
+    }
+
+    appendResult(result, line);
+  }, getDelay());
+});
+
+function appendResult(type, line) {
+  const html = <div>${line}</div>;
+  if (type === "live") {
+    liveDiv.innerHTML += html;
+    document.getElementById("live-count").textContent = ++liveCount;
+  } else if (type === "dead") {
+    deadDiv.innerHTML += html;
+    document.getElementById("dead-count").textContent = ++deadCount;
+  } else {
+    unknownDiv.innerHTML += html;
+    document.getElementById("unknown-count").textContent = ++unknownCount;
+  }
+}
+
+function getDelay() {
+  return Math.floor(Math.random() * 1200) + 800; // 800ms – 2000ms
+}
+
+function isValidFormat(ccLine) {
+  const parts = ccLine.split("|");
+  return parts.length === 4 && parts.every(p => p.trim().length > 0);
+}
+
+function luhnCheck(number) {
+  const digits = number.replace(/\D/g, '');
+  let sum = 0;
+  let toggle = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let digit = parseInt(digits[i]);
+    if (toggle) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    toggle = !toggle;
+  }
+  return sum % 10 === 0;
+}
+
+function multiLevelLuhnCheck(card) {
+  // Level 1: basic length
+  if (card.length < 13 || card.length > 19) return false;
+  // Level 2: numeric check
+  if (!/^\d+$/.test(card)) return false;
+  // Level 3: luhn
+  return luhnCheck(card);
+}
+
+stopCheckBtn.addEventListener("click", () => {
+  clearInterval(updateInterval);
+  checkBtn.disabled = false;
+  stopCheckBtn.disabled = true;
+  Swal.fire("Stopped", "You stopped the check.", "info");
+});
+
+function toggleButtons() {
+  checkBtn.disabled = true;
+  stopCheckBtn.disabled = false;
+}
+
+function copyToClipboard(id) {
+  const text = document.getElementById(id).innerText.trim();
+  navigator.clipboard.writeText(text).then(() => {
+    Swal.fire("Copied!", "Cards copied to clipboard.", "success");
+  });
+}
+
+function pasteToNumbersBox() {
+  const btn = document.getElementById("pasteToNumbersBox");
+  navigator.clipboard.readText().then((text) => {
+    document.getElementById("numbers").value += text;
+  }).catch((err) => {
+    console.error("Clipboard error:", err);
+  });
+
+  btn.classList.add("shake");
+  setTimeout(() => btn.classList.remove("shake"), 500);
+}
+</script>
+
+</body>
+</html>
