@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>BBINl / CC Checker</title>
+  <title>KE1 / CC Checker</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     body {
       font-family: Rubik, sans-serif;
@@ -75,7 +74,7 @@
 </head>
 <body>
 
-<h1>CC Checker</h1>
+<h1>KE1 / CC Checker</h1>
 
 <label for="numbers">Paste your credit card numbers:</label>
 <textarea id="numbers" rows="10" placeholder="434256******1234|03|2026|123"></textarea>
@@ -156,7 +155,7 @@ checkBtn.addEventListener("click", () => {
 });
 
 function appendResult(type, line) {
-  const html = <div>${line}</div>;
+  const html = `<div>${line}</div>`;
   if (type === "live") {
     liveDiv.innerHTML += html;
     document.getElementById("live-count").textContent = ++liveCount;
